@@ -1,0 +1,21 @@
+# 编译产物
+*.smx
+*.tmp
+
+# 备份/临时
+*.bak
+*.bak-*
+*.saved-*
+*~
+*.orig
+
+# 日志与体积大的分析产物
+*.log
+*.tgz
+*.tar.gz
+vprof*
+datamaps_L4D2.txt
+
+# 本地凭据（真值放这里，永不入库）
+secrets.env
+.env
