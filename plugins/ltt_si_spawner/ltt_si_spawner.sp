@@ -600,7 +600,7 @@
 // 所以突击脉冲走的是 AI_HardSI.sp 那套"临时摘掉 FCVAR_CHEAT 旗标"的做法。
 #include <console>
 
-#define PLUGIN_VERSION "1.49.6"
+#define PLUGIN_VERSION "1.49.9"
 #define TEAM_SURVIVOR   2
 #define TEAM_INFECTED   3
 #define MAX_CLASS       6
@@ -950,6 +950,22 @@ float  g_flKickAt[MAXPLAYERS + 1];      // 已发出 KickClient 的时刻（0=�
 
 bool   g_bClassAllowed[MAX_CLASS + 1];
 bool   g_bArmed;              // 本回合是否已进入"开始刷特"状态
+float  g_flMapStartGame;      // 【v1.49.7】本图 OnMapStart 时的 GetGameTime()（用于 arm_delay）
+bool   g_bLttArmDelayLogged;  // 【v1.49.7】本图是否已经打过"武装延后"那行日志
+ConVar g_cArmDelay;           // 【v1.49.7】武装延后秒数
+ConVar g_cArmDelayMaps;       // 【v1.49.7】需要延后武装的地图名单
+ConVar g_cIntroGuard;         // 【v1.49.8】双重保险①：开场过场期间不开刷
+ConVar g_cIntroGuardMax;      // 【v1.49.8】过场判定最多挡多少秒（防原生抽风）
+bool   g_bHasIntroNative;     // 【v1.49.8】left4dhooks 是否提供 L4D_IsInIntro
+bool   g_bLttIntroLogged;     // 【v1.49.8】本图是否已打过"等过场"日志
+bool   g_bLttIntroDoneLogged; // 【v1.49.8】本图是否已打过"过场结束"日志
+ConVar g_cArmMove;            // 【v1.49.9】"动过"判定阈值（单位），0=关
+ConVar g_cArmMoveMax;         // 【v1.49.9】兜底：开图多少秒后不再要求「动过」
+bool   g_bLttSomeoneMoved;    // 【v1.49.9】本回合是否已有生还者真的动过
+bool   g_bLttMoveLogged;      // 【v1.49.9】是否已打过"还没人动过"日志
+bool   g_bLttMoveTimeoutLogged; // 【v1.49.9】是否已打过"兜底放行"日志
+float  g_vLttRefPos[MAXPLAYERS + 1][3]; // 【v1.49.9】每人基准位置
+bool   g_bLttRefValid[MAXPLAYERS + 1];  // 【v1.49.9】基准位置是否有效
 bool   g_bOwnSpawn;           // 重入标志：当前这次生成是本插件自己发起的
 bool   g_bLoggedMaxSpecials;  // MaxSpecials 抬高日志是否已打过（该回调每帧触发，必须节流）
 // 【v1.18.7】导演脚本 CommonLimit 拦截用（并自 L4D2-Competitive-Rework 的
@@ -1470,6 +1486,8 @@ public void OnPluginStart()
 	g_bHasTravel = (GetFeatureStatus(FeatureType_Native, "L4D2_NavAreaTravelDistance") == FeatureStatus_Available);
 	// 【v1.22.0】安全屋位置精判（老版 left4dhooks 没有 → 只靠 NAV_SPAWN_CHECKPOINT 属性）
 	g_bHasCpPos = (GetFeatureStatus(FeatureType_Native, "L4D_IsPositionInFirstCheckpoint") == FeatureStatus_Available);
+	// 【v1.49.8】开场过场原生（left4dhooks 1.133+ 提供；老版本退化成只用时间闸）
+	g_bHasIntroNative = (GetFeatureStatus(FeatureType_Native, "L4D_IsInIntro") == FeatureStatus_Available);
 
 	// 【v1.15.0】点级可见性原生（两级判定的第二级要用）
 	g_bHasVisPlayer = (GetFeatureStatus(FeatureType_Native, "L4D2_IsVisibleToPlayer") == FeatureStatus_Available);
@@ -1483,6 +1501,17 @@ public void OnPluginStart()
 	g_cCap      = CreateConVar("ltt_sispawn_cap",     "8",     "同时存活上限。建议约为 wave 的 2 倍，否则上一波剩下的会吃掉下一波额度", FCVAR_NOTIFY, true, 1.0, true, 32.0);
 	g_cTime     = CreateConVar("ltt_sispawn_time",    "40.0",  "刷新间隔（秒）", FCVAR_NOTIFY, true, 1.0, true, 300.0);
 	g_cFirst    = CreateConVar("ltt_sispawn_first",   "5.0",   "离开安全区后第一波特感的延迟（秒）", FCVAR_NOTIFY, true, 0.0, true, 120.0);
+	// 【v1.49.7 · 车主 2026-10-31】没有起点安全屋的自制图：开图后先等一会儿再武装。
+	// 背景：这类图 L4D_HasAnySurvivorLeftSafeArea() 一开图就为 true，过场动画还没放完特感就开刷。
+	// 只对**名单里的图**生效 ⇒ 官图与其它图行为完全不变。
+	g_cArmDelay      = CreateConVar("ltt_sispawn_arm_delay",      "60.0", "【v1.49.7】在 arm_delay_maps 名单里的图：开图后等这么多秒才允许武装/开刷（0=不延后）", FCVAR_NOTIFY, true, 0.0, true, 600.0);
+	g_cArmDelayMaps  = CreateConVar("ltt_sispawn_arm_delay_maps", "", "【v1.49.7】需要延后武装的地图名单（逗号分隔，精确地图名，大小写不敏感）", FCVAR_NOTIFY);
+	// 【v1.49.8 · 车主 2026-11-01】双重保险①：开场过场（L4D_IsInIntro）期间一律不开刷。
+	g_cIntroGuard    = CreateConVar("ltt_sispawn_intro_guard",      "1",     "【v1.49.8】1=开场过场期间不开刷（对所有图生效）｜0=关", FCVAR_NOTIFY, true, 0.0, true, 1.0);
+	g_cIntroGuardMax = CreateConVar("ltt_sispawn_intro_guard_max",  "180.0", "【v1.49.8】过场判定最多挡这么多秒（防原生异常导致永不刷特）", FCVAR_NOTIFY, true, 0.0, true, 900.0);
+	// 【v1.49.9 · 车主 2026-11-02】"生还者动过"作为武装信号：冻结/过场中动不了 ⇒ 动了就是解冻了。
+	g_cArmMove      = CreateConVar("ltt_sispawn_arm_move",     "200.0", "【v1.49.9】生还者位移超过这么多单位才算「动过」（0=关闭这个要求）", FCVAR_NOTIFY, true, 0.0, true, 3000.0);
+	g_cArmMoveMax   = CreateConVar("ltt_sispawn_arm_move_max", "180.0", "【v1.49.9】兜底：开图超过这么多秒就不再要求「动过」（防挂机死锁）", FCVAR_NOTIFY, true, 0.0, true, 900.0);
 	// 【v1.14.0】描述与默认值对齐：这里的默认值就是 200.0，不是 1。
 	//   历史：v1.8.2修订11 曾对齐 fdxx 的 z_spawn_safety_range=1 改成 1；
 	//         v1.10.1 按服主要求改回 200（设 1 会贴脸）。线上 cfg 也是 200.0。
@@ -2090,6 +2119,19 @@ public void OnPluginEnd()
  *  "Handle is invalid"，若只依赖 OnPluginStart 建一次，插件会在换图后静默停摆。 */
 public void OnMapStart()
 {
+	g_flMapStartGame = GetGameTime();   // 【v1.49.7】武装延后的计时起点
+	// 【v1.49.8】每图复位这些"只打一次"的日志标志（v1.49.7 漏了复位，导致只有第一张图会打）
+	g_bLttArmDelayLogged = false;
+	g_bLttIntroLogged = false;
+	g_bLttIntroDoneLogged = false;
+	g_bLttSomeoneMoved = false;
+	g_bLttMoveLogged = false;
+	g_bLttMoveTimeoutLogged = false;
+	for (int i = 1; i <= MaxClients; i++)
+	{
+		g_bLttRefValid[i] = false;
+		g_vLttRefPos[i][0] = g_vLttRefPos[i][1] = g_vLttRefPos[i][2] = 0.0;
+	}
 	g_bLttAnnounced = false;   // 【LTT 补丁】每图重置播报标志
 	g_hTick = CreateTimer(TICK_INTERVAL, Timer_Tick, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
 
@@ -4013,9 +4055,75 @@ public Action TimerTickBody(Handle timer)
 		g_flLastPhase[1] += dPh;                 // 【v1.23.0】相位：踢人回收
 	}
 
+	// 0) 【v1.49.9】先更新"生还者动过没有"（冻结/过场中动不了 ⇒ 动了就是解冻了）
+	LttUpdateMovedFlag();
+
 	// 1) 等生还者离开安全区
 	if (!g_bArmed)
 	{
+		// 【v1.49.8】双重保险①：开场过场还没放完，一律不开刷（所有图都管）。
+		// 只有"过了安全上限"才忽略这一闸，避免原生异常把刷特永久堵死。
+		if (g_bHasIntroNative && g_cIntroGuard.BoolValue)
+		{
+			float flElapsed = GetGameTime() - g_flMapStartGame;
+			if (flElapsed <= g_cIntroGuardMax.FloatValue && L4D_IsInIntro())
+			{
+				if (LogNormal() && !g_bLttIntroLogged)
+				{
+					g_bLttIntroLogged = true;
+					LogMessage("[SISpawn] v1.49.8 开场过场进行中 => 暂不开刷（已等 %.0f 秒；最多等 %.0f 秒后强制放行）",
+						flElapsed, g_cIntroGuardMax.FloatValue);
+				}
+				return Plugin_Continue;
+			}
+			if (LogNormal() && g_bLttIntroLogged && !g_bLttIntroDoneLogged)
+			{
+				g_bLttIntroDoneLogged = true;
+				LogMessage("[SISpawn] v1.49.8 开场过场已结束（用时 %.0f 秒）=> 恢复武装判定", flElapsed);
+			}
+		}
+
+		// 【v1.49.9】双重保险②：必须有人真的动过（位移超过 arm_move），除非已过兜底时间。
+		// 好处：不依赖地图白名单，任何图（含不报 IsInIntro 的自制图）都自动适用。
+		if (g_cArmMove.FloatValue > 0.0 && !g_bLttSomeoneMoved)
+		{
+			float flEl = GetGameTime() - g_flMapStartGame;
+			if (flEl <= g_cArmMoveMax.FloatValue)
+			{
+				if (LogNormal() && !g_bLttMoveLogged)
+				{
+					g_bLttMoveLogged = true;
+					LogMessage("[SISpawn] v1.49.9 还没有生还者移动（阈值 %.0f 单位）=> 暂不开刷（最多等到 %.0f 秒）",
+						g_cArmMove.FloatValue, g_cArmMoveMax.FloatValue);
+				}
+				return Plugin_Continue;
+			}
+			if (LogNormal() && !g_bLttMoveTimeoutLogged)
+			{
+				g_bLttMoveTimeoutLogged = true;
+				LogMessage("[SISpawn] v1.49.9 已等满 %.0f 秒仍无人移动 => 兜底放行（忽略「动过」要求）", g_cArmMoveMax.FloatValue);
+			}
+		}
+
+		// 【v1.49.7】名单里的图（无起点安全屋，例：ch01_jupiter 开场是长过场）：
+		// 开图后先等 ltt_sispawn_arm_delay 秒，否则过场还没放完特感就开刷。
+		if (g_cArmDelay.FloatValue > 0.0 && LttMapInArmDelayList())
+		{
+			float flWait = g_cArmDelay.FloatValue - (GetGameTime() - g_flMapStartGame);
+			if (flWait > 0.0)
+			{
+				if (LogNormal() && !g_bLttArmDelayLogged)
+				{
+					g_bLttArmDelayLogged = true;
+					char sMapD[64];
+					GetCurrentMap(sMapD, sizeof(sMapD));
+					LogMessage("[SISpawn] v1.49.7 本图在武装延后名单里（%s）：开图后先等 %.0f 秒再开刷（还剩 %.0f 秒）",
+						sMapD, g_cArmDelay.FloatValue, flWait);
+				}
+				return Plugin_Continue;
+			}
+		}
+
 		if (!L4D_HasAnySurvivorLeftSafeArea())
 			return Plugin_Continue;
 
@@ -4519,6 +4627,13 @@ void AnnounceSettings()
 public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
 	g_bArmed    = false;
+	g_bLttSomeoneMoved = false;      // 【v1.49.9】每回合重新判定"动过"
+	g_bLttMoveLogged = false;
+	g_bLttMoveTimeoutLogged = false;
+	for (int i = 1; i <= MaxClients; i++)
+	{
+		g_bLttRefValid[i] = false;
+	}
 	g_iQueueLen = 0;
 	g_iQueuePos = 0;
 	g_iWaveNo   = 0;
@@ -8345,4 +8460,82 @@ void RestoreEngineSpawnRange()
 			g_iOrigSpawnRange, g_bOrigRangeLowerSet, g_fOrigRangeLower,
 			g_iOrigSafeRange, g_bOrigSafeLowerSet, g_fOrigSafeLower,
 			g_iOrigDiscardRange, g_bOrigDiscardLowerSet, g_fOrigDiscardLower);
+}
+
+// ============================================================
+// 【v1.49.7 · 2026-10-31】武装延后名单（无起点安全屋的自制图用）
+// ============================================================
+/** 当前地图是否在 ltt_sispawn_arm_delay_maps 名单里（逗号分隔、精确匹配、大小写不敏感）。 */
+bool LttMapInArmDelayList()
+{
+	if (g_cArmDelayMaps == null)
+		return false;
+
+	char sList[256], sMap[64];
+	g_cArmDelayMaps.GetString(sList, sizeof(sList));
+	if (sList[0] == '\0')
+		return false;
+
+	GetCurrentMap(sMap, sizeof(sMap));
+
+	// 按逗号切分并逐项比较（去掉首尾空格）
+	char sItems[16][64];
+	int  nItems = ExplodeString(sList, ",", sItems, sizeof(sItems), sizeof(sItems[]));
+	for (int i = 0; i < nItems; i++)
+	{
+		TrimString(sItems[i]);
+		if (sItems[i][0] == '\0')
+			continue;
+		if (StrEqual(sItems[i], sMap, false))
+			return true;
+	}
+	return false;
+}
+
+// ============================================================
+// 【v1.49.9 · 2026-11-02】"生还者动过没有"判定
+//   冻结/开场过场里玩家动不了 ⇒ 只要有一名生还者位移超过阈值，
+//   就说明已经解冻/过场结束，可以进入武装判定。
+//   死亡、换队、重生都会作废该人的基准位置，重生后重新记录
+//   （避免"一复活就算动过"）。
+// ============================================================
+void LttUpdateMovedFlag()
+{
+	float flThr = g_cArmMove.FloatValue;
+	if (flThr <= 0.0 || g_bLttSomeoneMoved)
+		return;
+
+	for (int i = 1; i <= MaxClients; i++)
+	{
+		if (!IsClientInGame(i) || GetClientTeam(i) != 2 || !IsPlayerAlive(i))
+		{
+			g_bLttRefValid[i] = false;
+			continue;
+		}
+
+		float pos[3];
+		GetClientAbsOrigin(i, pos);
+
+		if (!g_bLttRefValid[i])
+		{
+			g_vLttRefPos[i][0] = pos[0];
+			g_vLttRefPos[i][1] = pos[1];
+			g_vLttRefPos[i][2] = pos[2];
+			g_bLttRefValid[i] = true;
+			continue;
+		}
+
+		float ref[3];
+		ref[0] = g_vLttRefPos[i][0];
+		ref[1] = g_vLttRefPos[i][1];
+		ref[2] = g_vLttRefPos[i][2];
+
+		if (GetVectorDistance(pos, ref) > flThr)
+		{
+			g_bLttSomeoneMoved = true;
+			if (LogNormal())
+				LogMessage("[SISpawn] v1.49.9 检测到生还者已移动（阈值 %.0f 单位）=> 冻结/过场视为结束", flThr);
+			return;
+		}
+	}
 }
