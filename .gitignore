@@ -19,3 +19,6 @@ datamaps_L4D2.txt
 # 本地凭据（真值放这里，永不入库）
 secrets.env
 .env
+
+# 构建输出（.smx 走 Release，不进仓库）
+dist/
