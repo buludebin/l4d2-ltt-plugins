@@ -55,7 +55,7 @@ spcomp plugins/ltt_kd/ltt_kd.sp -o ltt_kd.smx -i <sourcemod>/scripting/include
 | `ltt_si_bile_probe` | 1.0.2 | `ltt_si_bile_probe.sp` | ltt_si_bile_probe v1.0.1 —— 只在"有人被胆汁喷中"的窗口里记账（**零动作**） |
 | `ltt_si_menu` | 1.2.23 | `ltt_si_menu.sp` | ltt_si_menu  v1.2.13  —— 刷特设置的玩家菜单 + 原生投票（F1 同意 / F2 反对） |
 | `ltt_si_probe` | 1.1.1 | `ltt_si_probe.sp` | ltt_si_probe  ——  临时探针，用完即删 |
-| `ltt_si_spawner` | 1.49.10 | `ltt_si_spawner.sp` | ltt_si_spawner  v1.18.0  —— 刷特核心 |
+| `ltt_si_spawner` | 1.49.12 | `ltt_si_spawner.sp` | ltt_si_spawner  v1.18.0  —— 刷特核心 |
 | `ltt_si_witch` | 1.0.0 | `ltt_si_witch.sp` | ltt_si_witch  v1.0.0  —— 女巫（Witch）控制：总开关 + 数量上限 |
 | `ltt_skill_lite` | 1.2.1 | `ltt_skill_lite.sp` | ltt_skill_lite |
 | `ltt_skillreward` | 1.0.0 | `ltt_skillreward.sp` | LTT Melee Skill Reward  ——  低难度下「刀空爆 / 刀牛」额外回血 |

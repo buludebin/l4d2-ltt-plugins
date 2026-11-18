@@ -27,26 +27,6 @@
 | `ltt_megamob` | `l4d2_horde_equaliser` / `l4d2_tank_horde_monitor` | dong 的插件包 | 14 行 / 2.4%；12 行 / 2.1% |
 | `ltt_kd` | `NekoKillHud` | Neko 系列 | 8 行 / 3.0% |
 
-**这些"相同行"是什么？** 全部是 SourceMod 插件的**必备样板**，例如：
-
-```
-#include <sourcemod>
-#pragma newdecls required
-public Plugin myinfo =
-public void OnClientPutInServer(int client)
-return Plugin_Continue;
-```
-
-换句话说：同一套 SourceMod 框架下，任何一个插件的这几行都会长得一模一样，它们不包含玩法逻辑。
-在我们 11 个插件里，**没有任何一个存在成段的逻辑代码复制**。
-
-### 许可证状态
-
-- `fdxx` 的插件仓库是 **GPL-3.0**，与本仓库协议相同，兼容。
-- 其余参考件在原发布包里**没有明确的许可证声明**。因此我们采取的做法是：
-  **只参考行为，不复制代码，也不在本仓库分发它们的源码**。
-- 如果你是被参考插件的作者，认为这里的表述或做法不妥，请开 Issue 告知，我们会调整说明或移除相关表述。
-
 ## 收录范围
 
 本仓库**只收录我们自己（LTT）编写的插件源码**，目录前缀统一为 `ltt_`。

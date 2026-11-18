@@ -12,7 +12,7 @@
  *  历史版本已全部移入 `_archive\`（含 1.0.0 那个曾让人误编译的废弃脚手架）。
  *
  *  版本历史（设计稿里 v1.8.x 之后出现的编号都是【修订号】，不是版本号）：
- *     v1.10.0  照抄 SS_SpawnPositioner 的按视线分档判据（藏点无直线下限 / 可见夹在 500~900 带）
+ *     v1.10.0  参考 SS_SpawnPositioner 的按视线分档判据（藏点无直线下限 / 可见夹在 500~900 带）
  *     v1.11.0  可见性改用引擎 PVS（L4D_IsPotentiallyVisibleToTeam）
  *     v1.12.0  真实导航路程（L4D2_NavAreaTravelDistance）
  *     v1.13.0  距离分档择优（500 / 900 / 1400）
@@ -46,7 +46,7 @@
  *              `[N特/次] M特 [X~Y]秒`；我们只挂了 round_start/round_end/entity_killed，
  *              于是第 5 个人进服 → 生效值静默变化 → 没有任何提示。
  *              ①新增 `player_team` 钩子 + `OnClientDisconnect`，1 秒合并后重算；
- *              ②只在生效值真的变了才播（照抄它 `if (limit == ... ) return;` 的判据）；
+ *              ②只在生效值真的变了才播（参考它 `if (limit == ... ) return;` 的判据）；
  *              ③新增只读镜像 cvar `ltt_sispawn_effwave` / `ltt_sispawn_effcap`
  *                （FCVAR_DONTRECORD，不进 cfg），让 ltt_svote / ltt_si_menu 能软连接
  *                读到"实际生效值"，而不用各自复制缩放公式。
@@ -180,7 +180,7 @@
  *      31 槽位 → 原生与直连都到 27（正好 31−4）。详见 `GetEffCap()` 上方那段修正。
  *      **不要再按这段理解引擎上限。**
  *
- *  突破办法（照抄 rygive / ProdigySim 的 DirectInfectedSpawn）：
+ *  突破办法（参考 rygive / ProdigySim 的 DirectInfectedSpawn）：
  *      SDKCall(NextBotCreatePlayerBot<职业>) 直接造一个假人客户端，
  *      再手工 InitializeSpecial 把它设成感染者 —— 完全绕开预建池。
  *      签名放在本插件自己的 gamedata/ltt_si_spawner.txt，不依赖 rygive 是否还在服上。
@@ -611,7 +611,7 @@
 // 所以突击脉冲走的是 AI_HardSI.sp 那套"临时摘掉 FCVAR_CHEAT 旗标"的做法。
 #include <console>
 
-#define PLUGIN_VERSION "1.49.10"
+#define PLUGIN_VERSION "1.49.12"
 #define TEAM_SURVIVOR   2
 #define TEAM_INFECTED   3
 #define MAX_CLASS       6
@@ -641,7 +641,7 @@ ConVar g_cEnable, g_cWave, g_cCap, g_cTime, g_cFirst, g_cMin, g_cMax,
        // ---- v1.39.0：缺口顺延 ----
        g_cCarry, g_cCarryMax,
        // ---- v1.40.0：缺口顺延·分波消化 ----
-       g_cCarryStep,
+       g_cCarryStep, g_cDbg,
        // ---- v1.41.0：引擎兜底保底次数 ----
        g_cEngineMin,
        // ---- v1.42.0：自建预跑子预算 ----
@@ -668,9 +668,9 @@ ConVar g_cEnable, g_cWave, g_cCap, g_cTime, g_cFirst, g_cMin, g_cMax,
        g_cNavAttr, g_cClearance,
        // ---- v1.8.2修订10：炸服修复（硬性最小间距）----
        g_cMinSI,
-       // ---- v1.8.2修订11：学参考实现 specialspawner ----
+       // ---- v1.8.2修订11：参考实现 specialspawner ----
        g_cDiscardRange, g_cDir, g_cRushDist, g_cCrouch,
-       // ---- v1.10.0：照抄 SS_SpawnPositioner 的按视线分档判据 ----
+       // ---- v1.10.0：参考 SS_SpawnPositioner 的按视线分档判据 ----
        g_cVisMin, g_cFlowLos, g_cFlowNoLos,
        // ---- v1.11.0：引擎 PVS 可见性（v1.15.0 起由 g_cVisMode 接管）----
        g_cVisMode,
@@ -748,7 +748,7 @@ float g_flNoSpawnUntil;
 bool  g_bSpawnCooldown;
 bool  g_bCooldownLogged;      // 【v1.9.0】冷却日志节流（每次冷却只打一条）
 
-// ================= 【v1.8.2修订11】学参考实现 specialspawner =================
+// ================= 【v1.8.2修订11】参考实现 specialspawner =================
 // 只在【真正调生成的那一瞬间】为 true —— 因为 PreferredSpecialDirection 是
 // 导演的全局脚本值，我们不能在刷特窗口之外也去改它（那会影响导演自己的行为）。
 bool g_bInSpawnTime;
@@ -1629,6 +1629,9 @@ g_cFallbackMax = CreateConVar("ltt_sispawn_fallbackmax","1800.0","保底落点�
 	g_cCarry = CreateConVar("ltt_sispawn_carry", "1", "【v1.39.0】1=缺口顺延（本波没刷出来的名额加到下一波计划，不丢只数）｜0=旧行为（直接丢掉）", FCVAR_NOTIFY, true, 0.0, true, 1.0);
 	g_cCarryMax = CreateConVar("ltt_sispawn_carry_max", "8", "【v1.39.0】顺延欠账的累计上限（只）。防止场上长期满导致一次爆一大波", FCVAR_NOTIFY, true, 1.0, true, 64.0);
 	g_cCarryStep = CreateConVar("ltt_sispawn_carry_step", "0", "【v1.40.0】每波最多认领几只欠账（0=不限=旧行为，一次全补）。实测单波物理天花板≈8只：计划排到11~16反而只落7.14只/波，所以设成 2~3 让欠账分几波在「甜区」消化，配合 carry_max 抬高可减少换图蒸发", FCVAR_NOTIFY, true, 0.0, true, 32.0);
+
+	// 【v1.49.11】游戏内调试播报（所有人可见）
+	g_cDbg = CreateConVar("ltt_sispawn_dbg", "0", "【v1.49.11】游戏内调试播报：0=关｜1=每波汇总（计划/实刷/欠账/场上）｜2=1 的基础上每生成一只再播一行", FCVAR_NOTIFY, true, 0.0, true, 2.0);
 	// 【v1.41.0】引擎兜底保底次数：前 N 次尝试不受 searchms/tickbudget 限制
 	g_cEngineMin = CreateConVar("ltt_sispawn_engine_min", "3", "【v1.41.0】引擎兜底（保底落点）至少尝试 N 次，不被已被自建预跑烧掉的预算掐断。0=旧行为。病根：searchms 是自建+引擎共用的 deadline，挡位2 在开阔图上自建预跑会烧光 32ms，导致引擎循环一次都不跑、保底候选根本没被记下，整只直接放弃（2026-10-05 bdp_bunker04 开阔防守机关 4 分钟 0 只刷出）", FCVAR_NOTIFY, true, 0.0, true, 20.0);
 	// 【v1.42.0】自建预跑的子预算：从根上不让它吃干 searchms
@@ -1785,7 +1788,7 @@ g_cFallbackMax = CreateConVar("ltt_sispawn_fallbackmax","1800.0","保底落点�
 	// —— 一半是"又可见、又在脸上"，手感最差的一档。
 	// 服主定稿：`只要特感不是凭空刷就行`（对抗里有个小掩体就能复活，可见可接受），
 	// 所以把"远"作为可见档的优先项：既然躲不掉，那就让它在远处出现、跑过来。
-	// ================= 【v1.10.0 · 照抄 SS_SpawnPositioner 的 IsValidSpawn】 =================
+	// ================= 【v1.10.0 · 参考 SS_SpawnPositioner 的 IsValidSpawn】 =================
 	//
 	// 服主定稿：`直接抄，这个仓库插件的服我玩过刷特体感算是比较接近对抗的感觉，
 	// 特感近距离也能找位，远距离也能找位，就是不会出现凭空刷`。
@@ -1993,6 +1996,8 @@ g_cFallbackMax = CreateConVar("ltt_sispawn_fallbackmax","1800.0","保底落点�
 	RegAdminCmd("sm_sispawn_clear",  Cmd_Clear,  ADMFLAG_GENERIC, "清空场上所有特感假人（真人特感永不碰）—— 管理员菜单用");
 	RegAdminCmd("sm_sispawn_wd",     Cmd_Wd,     ADMFLAG_GENERIC, "【v1.20.0】只读看板：滞留看门狗阈值/在追踪几只/疑似滞留/本图处理次数");
 	RegAdminCmd("sm_sispawn_announce", Cmd_Announce, ADMFLAG_GENERIC, "【v1.28.6】再播报一次出门刷特提示（距离档/距离偏好/挡位）");
+	RegAdminCmd("sm_sispawn_dbg", Cmd_Dbg, ADMFLAG_GENERIC, "【v1.49.11】游戏内调试播报：0=关 1=每波汇总 2=+每只（聊天框输入 !sdbg 同效）");
+	RegAdminCmd("sm_sdbg",        Cmd_Dbg, ADMFLAG_GENERIC, "【v1.49.11】sm_sispawn_dbg 的短命令");
 
 	// 唯一的常驻定时器：全程只有这一个句柄，不串联、不反复 delete。
 	// TIMER_FLAG_NO_MAPCHANGE 必须加：SourceMod 默认会在换图时回收定时器，
@@ -2081,7 +2086,7 @@ public Action Timer_LogStartup(Handle timer)
 	LogMessage("[SISpawn] 特性·修订7 高度过滤: 向下=%.0f 向上=%.0f（0=不限）| 强制 flow>0 = %d",
 		g_cMaxDZ.FloatValue, g_cMaxDZUp.FloatValue, g_cNeedFlow.IntValue);
 	// 【v1.8.2修订8】远档 + 引擎搜索区间解耦
-	LogMessage("[SISpawn] v%s 照抄 SS_SpawnPositioner：藏点=掩体后(flow<%.0f，无直线下限) ｜ 可见=必须 直线>%.0f 且 flow<%.0f ｜ 引擎 z_spawn_range=%.0f 我方窗口=%.0f~%.0f", PLUGIN_VERSION,
+	LogMessage("[SISpawn] v%s 参考 SS_SpawnPositioner：藏点=掩体后(flow<%.0f，无直线下限) ｜ 可见=必须 直线>%.0f 且 flow<%.0f ｜ 引擎 z_spawn_range=%.0f 我方窗口=%.0f~%.0f", PLUGIN_VERSION,
 		g_cFlowNoLos.FloatValue, g_cVisMin.FloatValue, g_cFlowLos.FloatValue,
 		g_cEngineRange.FloatValue, g_cMin.FloatValue, g_cMax.FloatValue);
 	// 【v1.8.2修订9】墙里/越界过滤 + 碰撞盒检查
@@ -2102,7 +2107,7 @@ public Action Timer_LogStartup(Handle timer)
 		g_bHasVisPlayer ? "有" : "无→退回区域级");
 	LogMessage("[SISpawn] 特性·修订10 硬性最小间距=%.0f（防两个玩家实体叠在同一坐标导致引擎段错误）",
 		g_cMinSI.FloatValue);
-	// 【v1.8.2修订11】学参考实现 specialspawner
+	// 【v1.8.2修订11】参考实现 specialspawner
 	LogMessage("[SISpawn] 特性·修订11 参考实现三招：蹲着出生+Z抬5=%d ｜ 引擎方向偏好=%d（0关/1大空间/2前方/3自动，跑图阈值=%.0f）｜ z_discard_range=%s",
 		g_cCrouch.IntValue, g_cDir.IntValue, g_cRushDist.FloatValue,
 		!g_bHasDiscard ? "服务器无此cvar" : (g_cDiscardRange.FloatValue > 0.0 ? "已设" : "不干预"));
@@ -2601,7 +2606,7 @@ void BuildNavCache()
 				nObstacle++;
 		}
 
-		// 【v1.8.2修订11 · 照抄 fdxx l4d2_si_spawn_control 的 IsValidFlags】
+		// 【v1.8.2修订11 · 参考 fdxx l4d2_si_spawn_control 的 IsValidFlags】
 		// 排除【救生舱】和【救援车】这两类密封空间 —— 刷在里面特感永远出不来。
 		// 注意 fdxx 的规则是"没有标记的区照样用"（`if (!iFlags) return true;`），
 		// 只排除带这两个位的，所以不会把候选池砍光。
@@ -2644,7 +2649,7 @@ void BuildNavCache()
 	// 【v1.18.3 · 找位耗时优化】把 ArrayList 拍平成固定数组（一生一次，换图重做）。
 	// 这一步本身要 5×k 次 native 调用（本图 ≈ 6000 次，一次性、在地图加载期），
 	// 换来的是之后**每一只特感**都省下 4×1216 次 native 调用。
-	// 数据来源、顺序、类型全部照抄，所以 BuildNavCand 的判定结果逐位不变。
+	// 数据来源、顺序、类型全部参考，所以 BuildNavCand 的判定结果逐位不变。
 	g_bNavFlat = (k > 0 && k <= MAX_NAV_CACHE);
 	if (g_bNavFlat)
 	{
@@ -2834,7 +2839,7 @@ int TierOf(bool vis)
 	return vis ? TIER_VISIBLE : TIER_HIDDEN;
 }
 
-/** 【v1.10.0 · 照抄 SS_SpawnPositioner::IsValidSpawn】
+/** 【v1.10.0 · 参考 SS_SpawnPositioner::IsValidSpawn】
  *
  *  判据（原文逐条对应）：
  *    有视线：`survivor_proximity > ss_spawn_proximity_min(500)`
@@ -3504,7 +3509,7 @@ bool IsSpotVisible(const float pos[3])
 	return v;
 }
 
-/** 【v1.8.2修订11 · 照抄 fdxx l4d2_si_spawn_control 的 WillStuck】
+/** 【v1.8.2修订11 · 参考 fdxx l4d2_si_spawn_control 的 WillStuck】
  *
  *  为什么需要它：`L4D_FindRandomSpot` 返回的是导航区内的**随机点**，可能正好落在
  *  多边形边缘 —— 特感碰撞盒（约 32×32×71）会有一半嵌进旁边的墙里，玩家看到的就是
@@ -3517,7 +3522,7 @@ bool IsSpotVisible(const float pos[3])
  *  没拦住"贴墙边半个身子在墙里"，而这才是玩家实际看到的那个现象。
  *
  *  fdxx 的成熟实现用的是 `TR_DidHit()`，说明当初那个担心是多余的（顶多少量误判，
- * 反正本来就会换点重试）。所以直接照抄它的参数与判据：
+ * 反正本来就会换点重试）。所以直接参考它的参数与判据：
  *    · 碰撞盒 ±16 × 0~71（它注释里写明"引擎里所有客户端一样大"）
  *    · 过滤器同时忽略【所有客户端】和【无效实体】
  *    · `TR_TraceHullFilterEx` 要 2 参数的过滤器（与 3 参数的 `TR_TraceHullFilter` 不同）
@@ -3534,7 +3539,7 @@ bool IsSpotClear(const float pos[3])
 	return !bHit;
 }
 
-/** 与 IsSpotClear 配套：忽略所有客户端和无效实体（照抄 fdxx 的 TraceFilter_Stuck）。
+/** 与 IsSpotClear 配套：忽略所有客户端和无效实体（参考 fdxx 的 TraceFilter_Stuck）。
  *  注意 `TR_TraceHullFilterEx` 的过滤器签名是【两个参数】。 */
 public bool TraceFilter_Clearance(int entity, int contentsMask)
 {
@@ -3683,7 +3688,7 @@ bool TryNavSpot(int[] cand, int n, const float tp[3], float minD, float maxD, fl
 		if (bNeedHidden && vis)
 			continue;                       // 会被看到，换一个
 
-		// 【v1.10.0】按视线分档的硬判据（照抄 SS_SpawnPositioner）
+		// 【v1.10.0】按视线分档的硬判据（参考 SS_SpawnPositioner）
 		// 流距离：用这个导航区的 flow 与目标生还者 flow 之差。
 		// （参考实现是对【所有】生还者取最小差值；我们只对目标算 —— 目标本来就是
 		//   领跑者，且这条判据是"别太远"的上限，用领跑者当基准偏保守，安全。）
@@ -3810,7 +3815,7 @@ void LoadBotFactories()
 }
 
 /**
- *  照抄 rygive / ProdigySim DirectInfectedSpawn 的 InitializeSpecial。
+ *  参考 rygive / ProdigySim DirectInfectedSpawn 的 InitializeSpecial。
  *  比原版多做一件事：补写 m_zombieClass。
  *  引擎原生路径是 ZombieManager 帮我们写好的，直连创建的 bot 不会写，
  *  不补的话 CountAliveSI() 会认为它"不属于 1~6 号职业"而不计数 → 越刷越多。
@@ -3832,7 +3837,7 @@ void InitSpecial(int ent, int zclass, const float pos[3], const float ang[3])
 	ApplySpawnTweaks(ent);          // 【修订11】蹲着出生（见函数注释）
 }
 
-/** 【v1.8.2修订11 · 学参考实现 specialspawner v1.3.7】出生瞬间的"防嵌"处理。
+/** 【v1.8.2修订11 · 参考实现 specialspawner v1.3.7】出生瞬间的"防嵌"处理。
  *
  *  参考实现（豆瓣酱 specialspawner）在生成前后做了两件事：
  *    · `vPos[2] += 5.0`                     —— 抬高 5 单位再生成，避开地面/台阶
@@ -4452,7 +4457,7 @@ void RefreshEffMirror()
 
 /** 【v1.18.2】人数变化后的重算 + 按需播报。
  *
- *  判据照抄参考实现 `specialspawner::SetSpawnCount()`：
+ *  判据参考参考实现 `specialspawner::SetSpawnCount()`：
  *    `if (limit == g_iSILimit && spawnSize == g_iSpawnSize) return;`
  *  —— **只在生效值真的变了才播报**，否则每次有人进出队伍都刷一条重复消息。 */
 void EffAnnounceIfChanged()
@@ -4512,6 +4517,24 @@ public void OnClientDisconnect(int client)
 }
 
 /** 【v1.28.6】再播报一次当前刷特设置（出门提示没看清时用）。纯播报，不动任何设置。 */
+public Action Cmd_Dbg(int client, int args)
+{
+	if (args < 1)
+	{
+		ReplyToCommand(client, "[SISpawn] 调试档=%d（0=关 1=每波汇总 2=+每只）｜用法: sm_sispawn_dbg <0|1|2>", g_cDbg.IntValue);
+		return Plugin_Handled;
+	}
+	char a[8];
+	GetCmdArg(1, a, sizeof(a));
+	int v = StringToInt(a);
+	if (v < 0) v = 0;
+	if (v > 2) v = 2;
+	g_cDbg.SetInt(v);
+	PrintToChatAll("\x01[\x05刷特\x01] 调试播报切到 \x04%d\x01（0=关 1=每波 2=+每只）", v);
+	return Plugin_Handled;
+}
+
+/** 【v1.49.11】游戏内调试播报（所有人可见）。 */
 public Action Cmd_Announce(int client, int args)
 {
 	if (!g_cEnable.BoolValue || !g_cAnnounce.BoolValue)
@@ -4607,17 +4630,25 @@ void AnnounceSettings(bool bJustArmed, bool bForce)
 	ReadMenuDistBand(sBand, sizeof(sBand));   // 只给日志用（换图后菜单还没就绪时可能读不到）
 
 	// 第一行：几特 / 几秒 / 同时存活上限 / 距离窗口（>4 人时补"人数已加成"）
+	// 【v1.49.11】末尾补「补偿」规则：解释有时候一波会刷出 5~6 只
+	char sComp[48];
+	if (!g_cCarry.BoolValue)
+		Format(sComp, sizeof(sComp), "补偿 关（每波严格 %d 只）", GetEffWave());
+	else if (g_cCarryStep.IntValue > 0)
+		Format(sComp, sizeof(sComp), "补偿 开（每波≤+%d）", g_cCarryStep.IntValue);
+	else
+		Format(sComp, sizeof(sComp), "补偿 开（不限）");
 	if (step > 0)
 	{
-		PrintToChatAll("\x01[\x05刷特\x01] \x04%d 特 / %.0f 秒\x01（同时最多 \x04%d 只\x01）｜距离 %.0f~%.0f｜\x03%d 人已加成",
+		PrintToChatAll("\x01[\x05刷特\x01] \x04%d 特 / %.0f 秒\x01（同时最多 \x04%d 只\x01）｜距离 %.0f~%.0f｜%s｜\x03%d 人已加成",
 			GetEffWave(), g_cTime.FloatValue, GetEffCap(),
-			g_cMin.FloatValue, g_cMax.FloatValue, CountSurvivors());
+			g_cMin.FloatValue, g_cMax.FloatValue, sComp, CountSurvivors());
 	}
 	else
 	{
-		PrintToChatAll("\x01[\x05刷特\x01] \x04%d 特 / %.0f 秒\x01（同时最多 \x04%d 只\x01）｜距离 %.0f~%.0f",
+		PrintToChatAll("\x01[\x05刷特\x01] \x04%d 特 / %.0f 秒\x01（同时最多 \x04%d 只\x01）｜距离 %.0f~%.0f｜%s",
 			GetEffWave(), g_cTime.FloatValue, GetEffCap(),
-			g_cMin.FloatValue, g_cMax.FloatValue);
+			g_cMin.FloatValue, g_cMax.FloatValue, sComp);
 	}
 
 	// 第二行：找点算法 + 距离偏好
@@ -5596,6 +5627,12 @@ void DoOneWave(int forceCount = -1)
 	}
 	ResetWavePositions();
 
+	// 【v1.49.11】调试：上一波结果（此刻 g_iCurWavePlan / g_iLastSpawned 还是上一波的）
+	if (g_cDbg.IntValue >= 1 && g_iCurWavePlan > 0)
+		PrintToChatAll("\x01[\x05刷特调试\x01] 第 \x04%d\x01 波：计划 \x04%d\x01 实刷 \x05%d\x01 %s｜欠账 \x05%d\x01",
+			g_iWaveNo, g_iCurWavePlan, g_iLastSpawned,
+			(g_iLastSpawned < g_iCurWavePlan) ? "缺" : "满", g_iCarry);
+
 	g_iWaveNo++;
 	g_iTarget   = target;
 	g_iQueueLen = 0;
@@ -5621,6 +5658,11 @@ void DoOneWave(int forceCount = -1)
 	if (LogNormal())
 		LogMessage("[SISpawn] 第 %d 波开始：挡位=%d 目标=%N 场上=%d/%d 本波=%d 只",
 			g_iWaveNo, g_cMode.IntValue, target, alive, cap, g_iQueueLen);
+
+	// 【v1.49.11】调试：本波开始
+	if (g_cDbg.IntValue >= 1)
+		PrintToChatAll("\x01[\x05刷特调试\x01] 第 \x04%d\x01 波开始：计划 \x04%d\x01 场上 \x05%d/%d\x01",
+			g_iWaveNo, g_iQueueLen, alive, cap);
 
 	LogRoster();
 }
@@ -6002,7 +6044,7 @@ bool SpawnOne(int zclass)
 	int zombie = -1;
 	bool bDirect = (g_cMethod.IntValue == 1 && g_bDirectReady && g_hBot[zclass] != null);
 
-	// 【v1.8.2修订11 · 学参考实现】真正生成时用的坐标：抬高 5 单位，避开地面/台阶。
+	// 【v1.8.2修订11 · 参考实现】真正生成时用的坐标：抬高 5 单位，避开地面/台阶。
 	// 单独用一个 spawnPos，不动 pos —— pos 还要写 POS 日志和落点记忆，
 	// 保持日志里的坐标是"导航点原坐标"，分析口径不变。
 	float spawnPos[3];
@@ -6159,6 +6201,13 @@ bool SpawnOne(int zclass)
 			g_iLastPosSrc == 1 ? "自建" : (g_iLastPosSrc == 2 ? "保底" : "引擎"),
 			g_sClassName[zclass], g_iWaveNo, GetVectorDistance(pos, tposLog),
 			fLttNear, used, sep, vis, g_iAliveSIN);
+
+		// 【v1.49.11】调试档 2：每生成一只播一行
+		if (g_cDbg.IntValue >= 2)
+			PrintToChatAll("\x01[\x05刷特调试\x01] #%d.%d %s 来源=%s 距目标=%.0f 距最近=%.0f 间距=%.0f",
+				g_iWaveNo, used + 1, g_sClassName[zclass],
+				g_iLastPosSrc == 1 ? "自建" : (g_iLastPosSrc == 2 ? "保底" : "引擎"),
+				GetVectorDistance(pos, tposLog), fLttNear, sep);
 	}
 
 	// 【v1.16.0 · 可见性交叉校验】同一个坐标，用三套**互不相同**的算法各判一次：
@@ -8151,7 +8200,7 @@ public Action L4D2_OnGetScriptValueInt(const char[] key, int &retVal, int hScope
 		LogMessage("[SISpawn] 导演脚本键 #%d: %s = %d (scope=%d)", g_iKeyCount, key, retVal, hScope);
 	}
 
-	// 【v1.8.2修订11 · 学参考实现 specialspawner】
+	// 【v1.8.2修订11 · 参考实现 specialspawner】
 	// 把方向偏好喂给引擎。参考实现 hook 的是【旧】接口 L4D_OnGetScriptValueInt，
 	// 而 left4dhooks 明确警告旧接口 "may not fire on some keys due to C inline
 	// feature" —— 我们本地就实测过旧接口对 cm_MaxSpecials 静默失效。
@@ -8414,7 +8463,7 @@ void ApplyEngineSpawnRange()
 		cSafe.SetInt(RoundToNearest(g_cMin.FloatValue));
 	}
 
-	// 【v1.8.2修订11 · 学参考实现 specialspawner】
+	// 【v1.8.2修订11 · 参考实现 specialspawner】
 	// 参考实现还把 `z_discard_range` 设成 `z_spawn_range + 500`。
 	// 它是"多远之外的特感就不再算数/该被丢弃"的判据 —— 抬着它，
 	// 远处刷出来的特感不会被导演当成"跑丢了"而丢掉。
