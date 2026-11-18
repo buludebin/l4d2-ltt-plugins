@@ -3,6 +3,17 @@
 > 本仓库**只收录我们自己写的 LTT 系列插件源码**（`.sp`）。
 > 第三方插件（AlliedModders 各家作者、豆瓣酱な 等）的源码**不在本仓库**，见 `NOTICE.md`。
 
+## ⚠️ 关于作者与 AI 生成内容
+
+**本仓库的代码与文档全部由 AI 生成**（DeepSeek Harness / DeepSeek 系列模型，经多轮对话产出），
+**不是作者逐行手写的**。作者承担的角色是：提出需求、在真实服务器上实测与反馈、审核与采纳、以及运维。
+
+- AI 生成的代码**没有软件工程层面的质量保证**：可能存在没覆盖的边界、没测到的分支、
+  或与特定 SourceMod / 游戏版本耦合的假设。请自行审阅后再用于生产环境。
+- 每个插件的头注释里写了「为什么这么写」和踩过的坑，那是**调试记录**，不是同行评审结论。
+- 因使用本仓库代码造成的任何后果由使用者自行承担（见 `LICENSE` 的免责条款）。
+- `NOTICE.md` 里列出的第三方插件**不是 AI 生成的**，它们的版权归各自作者，也不在本仓库内。
+
 ## 编译
 
 需要 **SourceMod 1.12.x** 的 `spcomp`，以及 `left4dhooks 1.168`（部分插件依赖）。
@@ -23,8 +34,8 @@ spcomp plugins/ltt_kd/ltt_kd.sp -o ltt_kd.smx -i <sourcemod>/scripting/include
 | `ltt_bile_retarget` | 1.0.4 | `ltt_bile_retarget.sp` | [LTT] Bile Retarget —— 特感目标接管（取代 [L4D & L4D2] Target Override） |
 | `ltt_boss` | 1.2.0 | `ltt_boss.sp` | ltt_boss v1.1.0 —— 坦克（Tank）管理：数量上限 / 本图不刷 / 一键处死 / 出场播报 |
 | `ltt_client_cvars` | 1.0.0 | `ltt_client_cvars.sp` | [LTT] Client Cvar Pusher — 服务器下发客户端参数 |
-| `ltt_diag` | 2.2.1 | `framelog_v220.sp` | { |
-| `ltt_direct_probe` | — | `ltt_direct_probe.sp` | ltt_direct_probe —— 突破特感上限实验，用完即删 |
+| `ltt_diag` | 2.2.1 | `framelog_v220.sp` | 帧耗时/卡顿归因日志（framelog 系列最终版） |
+| `ltt_direct_probe` | 1.1.1 | `ltt_direct_probe.sp` | ltt_direct_probe —— 突破特感上限实验，用完即删 |
 | `ltt_firez` | 1.2.0 | `ltt_firez.sp` | ltt_firez v1.2.0 —— 只用于实测的一次性探针 |
 | `ltt_flashlight` | 1.0.3 | `ltt_flashlight.sp` | [LTT] Server Flashlight — 服务端手电筒 |
 | `ltt_healvote` | 1.0.2 | `ltt_healvote.sp` | LTT Heal Amount Vote  ——  投票决定「击杀特感回复多少血量」 |
@@ -38,13 +49,13 @@ spcomp plugins/ltt_kd/ltt_kd.sp -o ltt_kd.smx -i <sourcemod>/scripting/include
 | `ltt_melee_lag` | 1.4.0 | `ltt_melee_lag.sp` | ltt_melee_lag —— 「刀不掉飞扑」**只记账、不动作**探针（v1.2.0） |
 | `ltt_melee_onehit` | 1.0.2 | `ltt_melee_onehit.sp` | ltt_melee_onehit —— 近战武器对特感**一刀死**（可配置哪些特感；默认牛牛除外） |
 | `ltt_no_interrupt` | 1.1.0 | `ltt_no_interrupt.sp` | ltt_no_interrupt  v1.1.0  —— 小丧尸不能打断救助 |
-| `ltt_sdk_probe` | — | `ltt_sdk_probe.sp` | ltt_sdk_probe  ——  最终对照实验，用完即删 |
+| `ltt_sdk_probe` | 1.0.1 | `ltt_sdk_probe.sp` | ltt_sdk_probe  ——  最终对照实验，用完即删 |
 | `ltt_servername` | 1.0.14 | `ltt_servername.sp` | ltt_servername v1.0.0 —— 服务器名按模板动态刷新（照 NekoServerName 那套机制重写） |
 | `ltt_si_ai` | 1.1.0 | `ltt_si_ai.sp` | ltt_si_ai  v1.0.0  ——  特感主动进攻修正（纯脚本，不依赖 BinHooks） |
 | `ltt_si_bile_probe` | 1.0.2 | `ltt_si_bile_probe.sp` | ltt_si_bile_probe v1.0.1 —— 只在"有人被胆汁喷中"的窗口里记账（**零动作**） |
 | `ltt_si_menu` | 1.2.23 | `ltt_si_menu.sp` | ltt_si_menu  v1.2.13  —— 刷特设置的玩家菜单 + 原生投票（F1 同意 / F2 反对） |
-| `ltt_si_probe` | — | `ltt_si_probe.sp` | ltt_si_probe  ——  临时探针，用完即删 |
-| `ltt_si_spawner` | 1.49.6 | `ltt_si_spawner.sp` | ltt_si_spawner  v1.18.0  —— 刷特核心 |
+| `ltt_si_probe` | 1.1.1 | `ltt_si_probe.sp` | ltt_si_probe  ——  临时探针，用完即删 |
+| `ltt_si_spawner` | 1.49.10 | `ltt_si_spawner.sp` | ltt_si_spawner  v1.18.0  —— 刷特核心 |
 | `ltt_si_witch` | 1.0.0 | `ltt_si_witch.sp` | ltt_si_witch  v1.0.0  —— 女巫（Witch）控制：总开关 + 数量上限 |
 | `ltt_skill_lite` | 1.2.1 | `ltt_skill_lite.sp` | ltt_skill_lite |
 | `ltt_skillreward` | 1.0.0 | `ltt_skillreward.sp` | LTT Melee Skill Reward  ——  低难度下「刀空爆 / 刀牛」额外回血 |

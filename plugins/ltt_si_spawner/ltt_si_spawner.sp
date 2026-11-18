@@ -584,6 +584,17 @@
  *                 在水里持续挪动的舌头，水平 d 够不着 wd_far、又在动 ⇒ 静止计时每次清零，
  *                 永远判不出来。新增：高度差超标**持续** vertstill 秒即判滞留并传送。
  *                 传送目的地也过水面/世界外闸（不让"搬走一只卡住的"变成"搬进水里再卡一次"）。
+ *     v1.49.10 【出门提示改版 —— 车主 2026-11-06 定稿】
+ *              车主反馈：弹这条时"完全不知道自己出了安全区"；旧文案「每波 / 间隔 / 上限 / 距离」
+ *              三个数字并列、没单位没参照，看不懂。
+ *              新文案（开场一行 + 正文两行）：
+ *                `[刷特] 已离开安全区 → 刷特开始（第一波 5 秒后）`   ← 只在真的刚出门/刚武装那一刻
+ *                `[刷特] 4 特 / 10 秒（同时最多 4 只）｜距离 200~2000`
+ *                `[刷特] 找点算法：自建落点优先（挡位 2）｜就近优先`
+ *              `AnnounceSettings()` 加两个参数：`bJustArmed`（印不印"已离开安全区"那行）、
+ *              `bForce`（无视"每回合只播一次"的守卫）。
+ *              顺手修一个旧 bug：`sm_sispawn_announce` 在同一回合内二次播报是**静默的**
+ *              （守卫先 return，命令却回"已重新播报"）；现在传 bForce=true 才真播。
  */
 
 #pragma semicolon 1
@@ -600,7 +611,7 @@
 // 所以突击脉冲走的是 AI_HardSI.sp 那套"临时摘掉 FCVAR_CHEAT 旗标"的做法。
 #include <console>
 
-#define PLUGIN_VERSION "1.49.9"
+#define PLUGIN_VERSION "1.49.10"
 #define TEAM_SURVIVOR   2
 #define TEAM_INFECTED   3
 #define MAX_CLASS       6
@@ -4134,7 +4145,7 @@ public Action TimerTickBody(Handle timer)
 		if (LogNormal())
 			LogMessage("[SISpawn] 有人离开安全区，%.1f 秒后刷第一波", g_cFirst.FloatValue);
 
-		AnnounceSettings();
+		AnnounceSettings(true, false);
 		return Plugin_Continue;
 	}
 
@@ -4509,7 +4520,7 @@ public Action Cmd_Announce(int client, int args)
 		return Plugin_Handled;
 	}
 
-	AnnounceSettings();
+	AnnounceSettings(false, true);
 
 	if (client > 0)
 		ReplyToCommand(client, "[SISpawn] 已重新播报当前设置（日志里也有同一条『播报:』记录）");
@@ -4562,53 +4573,56 @@ bool ReadMenuDistBand(char[] out, int maxlen)
 	return true;
 }
 
-void AnnounceSettings()
+/** 【v1.49.10 · 车主 2026-11-06 定稿】出门提示。
+ *  玩家反馈"弹出这条时完全不知道自己已经出了安全区"，所以先单独一行说明原因。
+ *  正文两行照车主定的文案：
+ *    ① `4 特 / 10 秒（同时最多 4 只）｜距离 200~2000`
+ *    ② `找点算法：自建落点优先（挡位 2）｜就近优先`
+ *  bJustArmed：只在"真的刚武装"那一刻传 true（多印"已离开安全区 → 刷特开始"那行）。
+ *  bForce    ：无视"每回合只播一次"的守卫（给 sm_sispawn_announce 用）。
+ *              【v1.49.10 修】原来那个命令在同一回合内二次播报是静默的 —— 守卫先 return 了。 */
+void AnnounceSettings(bool bJustArmed, bool bForce)
 {
 	if (!g_cAnnounce.BoolValue || !g_cEnable.BoolValue)
 		return;
 
-	// 【LTT 补丁 2026-10-07】团灭重启不再重复刷：每图只播一次（车主：播报只在出门提示就够了）
-	if (g_bLttAnnounced)
+	// 【LTT 补丁 2026-10-07】团灭重启不再重复刷：每回合只播一次（车主：播报只在出门提示就够了）
+	if (g_bLttAnnounced && !bForce)
 		return;
 	g_bLttAnnounced = true;
 
 	int step = GetScaleStep();
 	int m    = g_cMode.IntValue;
 
-	// 【v1.8.2修订6】把挡位也播报出去 —— 服主要求"出门提示是哪一档"
-	char sMode[64];
-	Format(sMode, sizeof(sMode), "挡位 %d", m);
-
-	if (step > 0)
+	// 【v1.49.10】先把"为什么现在弹这条"说清楚：玩家不知道自己已经出了安全区。
+	if (bJustArmed)
 	{
-		PrintToChatAll("\x01[\x05刷特\x01] \x04每波 \x05%d 只\x01 | 间隔 \x05%.0f 秒\x01 | 上限 \x05%d 只\x01 | 距离 \x05%.0f~%.0f\x01 | \x03%d 人已加成",
-			GetEffWave(), g_cTime.FloatValue, GetEffCap(),
-			g_cMin.FloatValue, g_cMax.FloatValue, CountSurvivors());
-	}
-	else
-	{
-		PrintToChatAll("\x01[\x05刷特\x01] \x04每波 \x05%d 只\x01 | 间隔 \x05%.0f 秒\x01 | 上限 \x05%d 只\x01 | 距离 \x05%.0f~%.0f",
-			GetEffWave(), g_cTime.FloatValue, GetEffCap(),
-			g_cMin.FloatValue, g_cMax.FloatValue);
+		PrintToChatAll("\x01[\x05刷特\x01] \x04已离开安全区 → 刷特开始\x01（第一波 \x05%.0f 秒\x01后）",
+			g_cFirst.FloatValue);
 	}
 
-	// 【v1.32.3 · 服主 2026-10-03 定稿的出门播报模板】只留两行：
-	//   ① 每波/间隔/上限/距离（+ 人数加成）
-	//   ② 挡位 + 距离偏好（合并一行，都用短名）
-	// 删掉的三处（服主点名不要）：
-	//   · 挡位名后面的长括号「（复刻 v1.7.1：纯引擎，不查视野、不管间距）」
-	//   · 「（0=纯引擎 / 1=引擎+视野+分散 / 2=自建落点优先）」这行说明
-	//   · 「距离档：开阔 200~2000（菜单里改：!si → 刷新距离，即时生效）」整行
-	//     —— 第一行已经有"距离 200~2000"，这行是重复信息
-	//   · 距离偏好后面的解释与命令提示（"只按档位→分散挑…｜开启：ltt_sispawn_nearbias 1"）
-	// 距离档的**数值**仍然进日志（下面 LogMessage 里的 距离档=%s 没动），只是不刷聊天框。
 	char sModeShort[32];
 	ShortModeName(m, sModeShort, sizeof(sModeShort));
 	char sBand[32];
 	ReadMenuDistBand(sBand, sizeof(sBand));   // 只给日志用（换图后菜单还没就绪时可能读不到）
 
-	PrintToChatAll("\x01[\x05刷特\x01] 挡位 \x04%d\x01：%s | 距离偏好：\x04%s\x01",
-		m, sModeShort, g_cNearBias.BoolValue ? "就近优先" : "均衡");
+	// 第一行：几特 / 几秒 / 同时存活上限 / 距离窗口（>4 人时补"人数已加成"）
+	if (step > 0)
+	{
+		PrintToChatAll("\x01[\x05刷特\x01] \x04%d 特 / %.0f 秒\x01（同时最多 \x04%d 只\x01）｜距离 %.0f~%.0f｜\x03%d 人已加成",
+			GetEffWave(), g_cTime.FloatValue, GetEffCap(),
+			g_cMin.FloatValue, g_cMax.FloatValue, CountSurvivors());
+	}
+	else
+	{
+		PrintToChatAll("\x01[\x05刷特\x01] \x04%d 特 / %.0f 秒\x01（同时最多 \x04%d 只\x01）｜距离 %.0f~%.0f",
+			GetEffWave(), g_cTime.FloatValue, GetEffCap(),
+			g_cMin.FloatValue, g_cMax.FloatValue);
+	}
+
+	// 第二行：找点算法 + 距离偏好
+	PrintToChatAll("\x01[\x05刷特\x01] 找点算法：\x04%s\x01（挡位 %d）｜%s",
+		sModeShort, m, g_cNearBias.BoolValue ? "就近优先" : "均衡");
 
 	// 【v1.32.0】补员模式开着时，上面那句"间隔 N 秒"就是误导（补员根本不看间隔），必须补一句
 	if (g_cRefill.IntValue > 0)
@@ -4618,10 +4632,11 @@ void AnnounceSettings()
 	}
 
 	if (LogNormal())
-		LogMessage("[SISpawn] 播报: 挡位=%d 每波=%d 上限=%d 间隔=%.0f 距离=%.0f~%.0f 生还者=%d 距离档=%s 距离偏好=%d 补员=%d 突击脉冲=%d",
+		LogMessage("[SISpawn] 播报: 挡位=%d 每波=%d 上限=%d 间隔=%.0f 距离=%.0f~%.0f 生还者=%d 距离档=%s 距离偏好=%d 补员=%d 突击脉冲=%d 第一波=%.0f 刚出门=%d",
 			m, GetEffWave(), GetEffCap(), g_cTime.FloatValue,
 			g_cMin.FloatValue, g_cMax.FloatValue, CountSurvivors(),
-			sBand, g_cNearBias.IntValue, g_cRefill.IntValue, g_cAssault.IntValue);
+			sBand, g_cNearBias.IntValue, g_cRefill.IntValue, g_cAssault.IntValue,
+			g_cFirst.FloatValue, bJustArmed);
 }
 
 public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
