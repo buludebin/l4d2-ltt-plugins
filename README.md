@@ -64,6 +64,29 @@ plugins/<插件名>/<插件名>.sp     # 源码（个别插件的主文件名与
 
 ## 说明
 
-- **不含**编译产物（`.smx`）、**不含** `cfg`（配置由插件首次加载时自动生成）、**不含**内部运维设计稿
-  （设计稿记录了大量服务器运维细节与凭据，不适合入库）。
+- **不含**编译产物（`.smx`）、**不含** `cfg`（配置由插件首次加载时自动生成）。
+- `docs/` 下有一份**脱敏**的完整设计稿（1.3 MB）：每个决定为什么这么定、每次事故怎么取证；
+  rcon 密码 / 服务器 IP 均已替换为占位符。
 - 每个插件头注释里一般都有「为什么这么写」的说明与踩坑记录，改之前建议先读头注释。
+
+## 开源协议
+
+本项目以 **GNU GPL v3** 发布，全文见 [`LICENSE`](LICENSE)。
+
+```
+Copyright (C) 2026 buludebin (LTT)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+```
+
+- 你可以自由使用、修改、再发布，**但修改后的源码必须以同一协议公开**（GPL 的传染性）。
+- **第三方插件源码不在本仓库**（见 `NOTICE.md`），它们的版权归各自作者，不在本协议覆盖范围内。
+- 如果你想用在闭源/商业项目里，GPL-3.0 不适用 —— 可另行联系作者谈授权。
