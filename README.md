@@ -50,7 +50,7 @@ spcomp plugins/ltt_kd/ltt_kd.sp -o ltt_kd.smx -i <sourcemod>/scripting/include
 | `ltt_melee_onehit` | 1.0.2 | `ltt_melee_onehit.sp` | ltt_melee_onehit —— 近战武器对特感**一刀死**（可配置哪些特感；默认牛牛除外） |
 | `ltt_no_interrupt` | 1.1.0 | `ltt_no_interrupt.sp` | ltt_no_interrupt  v1.1.0  —— 小丧尸不能打断救助 |
 | `ltt_sdk_probe` | 1.0.1 | `ltt_sdk_probe.sp` | ltt_sdk_probe  ——  最终对照实验，用完即删 |
-| `ltt_servername` | 1.0.14 | `ltt_servername.sp` | ltt_servername v1.0.0 —— 服务器名按模板动态刷新（照 NekoServerName 那套机制重写） |
+| `ltt_servername` | 1.0.15 | `ltt_servername.sp` | ltt_servername v1.0.0 —— 服务器名按模板动态刷新（照 NekoServerName 那套机制重写） |
 | `ltt_si_ai` | 1.1.0 | `ltt_si_ai.sp` | ltt_si_ai  v1.0.0  ——  特感主动进攻修正（纯脚本，不依赖 BinHooks） |
 | `ltt_si_bile_probe` | 1.0.2 | `ltt_si_bile_probe.sp` | ltt_si_bile_probe v1.0.1 —— 只在"有人被胆汁喷中"的窗口里记账（**零动作**） |
 | `ltt_si_menu` | 1.2.23 | `ltt_si_menu.sp` | ltt_si_menu  v1.2.13  —— 刷特设置的玩家菜单 + 原生投票（F1 同意 / F2 反对） |

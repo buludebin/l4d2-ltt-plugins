@@ -37,7 +37,7 @@
  *  命令（ADMFLAG_ROOT）：sm_updatename / sm_host / sm_showname / sm_setname <模板>
  */
 
-#define PLUGIN_VERSION "1.0.14"
+#define PLUGIN_VERSION "1.0.15"
 
 // 默认模板：几特几秒（{wave} 是生效值，4 人时就是设定值）
 #define DEFAULT_FORMAT "L4D2 服务器[{wave}特{time}秒]"
