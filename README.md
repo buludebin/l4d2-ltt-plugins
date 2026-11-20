@@ -40,7 +40,7 @@ spcomp plugins/ltt_kd/ltt_kd.sp -o ltt_kd.smx -i <sourcemod>/scripting/include
 | `ltt_flashlight` | 1.0.3 | `ltt_flashlight.sp` | [LTT] Server Flashlight — 服务端手电筒 |
 | `ltt_healvote` | 1.0.2 | `ltt_healvote.sp` | LTT Heal Amount Vote  ——  投票决定「击杀特感回复多少血量」 |
 | `ltt_hitsound` | 1.1.10-Optimized | `ltt_hitsound.sp` | 玩家音效选择状态 |
-| `ltt_kd` | 1.0.16 | `ltt_kd.sp` | ltt_kd  v1.0.10 —— 击杀统计 + 排行榜（聊天框） |
+| `ltt_kd` | 1.0.17 | `ltt_kd.sp` | ltt_kd  v1.0.10 —— 击杀统计 + 排行榜（聊天框） |
 | `ltt_laugh` | 1.2.1 | `ltt_laugh.sp` | ltt_laugh  v1.2.0  ——  玩家"笑声/嘲讽"→ 全服广播 + 惩罚（三种方式 + 按重开次数升级） |
 | `ltt_level_heal` | 1.7.0 | `ltt_level_heal.sp` | v1.4.0：换图后读图慢的人补血 |
 | `ltt_longad` | 1.0.0 | `ltt_longad.sp` | LTT Long Ads  ——  长文案广告 |

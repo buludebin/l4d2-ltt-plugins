@@ -108,7 +108,7 @@
  *      `_工具\build\include\multicolors\colors.inc` 是 3740 字节假货（build_kd.ps1 有断言拦它）。
  */
 
-#define PLUGIN_VERSION "1.0.16"
+#define PLUGIN_VERSION "1.0.17"
 
 /**
  * 【颜色调色板 · L4D2 下真正可用的 tag 只有这 6 个】
@@ -289,8 +289,7 @@ int Credit(int client)
 
 // ====================================================== 计数
 
-int  g_iRestart = 0;      // 【v1.0.15】本图重开次数（载图后第一次 round_start 不算）
-bool g_bFirstRound = true;
+int  g_iRestart = 0;      // 【v1.0.17】本图团灭次数（= 这张图重开了几次）
 
 void ResetRound()
 {
@@ -400,19 +399,13 @@ public void OnMapStart()
 	g_iZbT[1]    = 0;
 	g_iWitchT[1] = 0;
 	g_iTankT[1]  = 0;
-	g_iRestart    = 0;      // 【v1.0.15】本图重开次数清零
-	g_bFirstRound = true;
+	g_iRestart    = 0;      // 【v1.0.17】本图团灭次数清零
 	g_bReported    = false;
 	g_flRoundStart = GetGameTime();
 }
 
 public void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
-	// 【v1.0.15】统计本图重开次数：载图后的第一次回合不算重开
-	if (g_bFirstRound)
-		g_bFirstRound = false;
-	else
-		g_iRestart++;
 
 	ResetRound();
 	g_bReported    = false;
@@ -457,6 +450,12 @@ void Report(int reason, int target = 0)
 
 	if (!g_cEnable.BoolValue)
 		return;
+
+	// 【v1.0.17】重开次数改按“团灭”计：玩家口径 = 这张图灭了几次。
+	// 原来按 round_start 计，但实测载图后的第一局不产生 round_start 事件，
+	// 于是第一次团灭后的那次重开被当成“第一局”吞掉 ⇒ 显示永远比实际少 1。
+	if (reason == RPT_WIPE)
+		g_iRestart++;
 
 	char sHead[24];
 	switch (reason)
